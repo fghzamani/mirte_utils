@@ -1,0 +1,38 @@
+# vcstool manifest for the Mirte physical-robot demo workspace.
+#
+#   vcs import src < mirte_demo.repos
+#
+# The keys are the directory names created under src/, so they must match what
+# the build expects. Each entry is pinned to the annotated tag
+# mirte-demo-2026-10-07, which marks the state verified on the physical robot;
+# the exact commit is noted beside it so the pin can be re-created even if a tag
+# is ever moved.
+#
+# To follow ongoing work instead of the frozen state, change `version` to
+# `mirte_demo` (the development branch in each repo).
+repositories:
+
+  # Nav2 bringup, demo launch, demo_params, maps, RViz config, laser self
+  # filter, nav_status_monitor.
+  # Fork of MartijnWisse/mirte_navigation @ 889cc37 (branch ros2_humble);
+  # `origin` in that clone still points upstream so it stays pullable.
+  mirte_minimal_navigation:
+    type: git
+    url: git@github.com:fghzamani/mirte_minimal_navigation.git
+    version: mirte-demo-2026-10-07        # commit d0f9bb8855e3f40a0f0f5bd9cfc6a844d1a1da7c
+
+  # The envelope reasoner / online causal tuner.
+  # Branch mirte_demo; the ICRA submission state is on icra_submission @ 6e3d802
+  # and is deliberately untouched.
+  online_causal_tuner:
+    type: git
+    url: git@github.com:fghzamani/online_causal_tuner.git
+    version: mirte-demo-2026-10-07        # commit 42aaf8cc5d382e64bae53d54e967d981de041913
+
+  # Risk node (publishes /risk_state) and measure_footprint.
+  # Builds the ROS package `rct_collector` -- note the directory and package
+  # names differ.
+  rct_data_collector:
+    type: git
+    url: git@github.com:fghzamani/rct_data_collector.git
+    version: mirte-demo-2026-10-07        # commit d50c11fce048892bfbb619d9cf3b8f23091481f3

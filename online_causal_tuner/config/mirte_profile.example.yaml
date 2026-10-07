@@ -1,0 +1,28 @@
+robot:
+  width_m: 0.0
+  footprint: ""
+
+reference:
+  width_m: 0.0
+
+features:
+  order:
+    - risk__r_min
+    - risk__r_width
+    - risk__r_ttc
+    - risk__r_dens
+    - risk__r_clear
+    - risk__r_curve
+    - risk__r_grad
+    - risk__r_vis
+  support:
+    risk__r_min: [0.0, 1.0]
+    risk__r_width: [0.0, 1.0]
+    risk__r_ttc: [0.0, 1.0]
+    risk__r_dens: [0.0, 1.0]
+    risk__r_clear: [0.0, 1.0]
+    risk__r_curve: [0.0, 1.0]
+    risk__r_grad: [0.0, 1.0]
+    risk__r_vis: [0.0, 1.0]
+
+risk_threshold_p_max: 0.20

@@ -1,0 +1,1135 @@
+<meta charset="utf-8">
+<title>Causal Tuner in Motion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one 16:9 stage (the motion graphic, recordable), a transport bar beneath, presenter notes below. One idea per frame, large type. */
+:root{
+  --page:#eceff3; --stage:#f8f9fb; --floor:#e7ebf1; --ink:#131a30; --ink-2:#55617a; --line:#d4dae3;
+  --wall:#36415a; --rack:#8f9bb0; --rack-fill:#dde2ea; --mirte:#2747d4; --plate:#dde5f6; --plate-edge:#9fb0d8;
+  --arm:#22252c; --arm-halo:#f8f9fb; --servo:#ef8a22; --box:#c99a5b; --box-edge:#8c6534;
+  --safe:#0f8a64; --warn:#c98a00; --risk:#cc3829; --infl:#7a4fe0; --ray:rgba(39,71,212,.10);
+  --tape:#e2ae00; --hl:rgba(39,71,212,.07); --chip-ink:#ffffff; --panel:#ffffff;
+  --f-display:"Sora","Segoe UI",Helvetica,Arial,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --page:#0c1220; --stage:#111a2b; --floor:#17213a; --ink:#e9edf6; --ink-2:#9ba7bf; --line:#283350;
+    --wall:#8e9bb5; --rack:#5b6886; --rack-fill:#1e2942; --mirte:#5a78ff; --plate:#2a3659; --plate-edge:#5b6da0;
+    --arm:#05070b; --arm-halo:#7c89a6; --servo:#ff9a3c; --box:#cf9f60; --box-edge:#e6c08a;
+    --safe:#2cc490; --warn:#f2b52a; --risk:#ff5e4e; --infl:#a98bff; --ray:rgba(125,150,255,.12);
+    --tape:#d6a400; --hl:rgba(125,150,255,.09); --chip-ink:#0c1220; --panel:#141e33; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --page:#0c1220; --stage:#111a2b; --floor:#17213a; --ink:#e9edf6; --ink-2:#9ba7bf; --line:#283350;
+  --wall:#8e9bb5; --rack:#5b6886; --rack-fill:#1e2942; --mirte:#5a78ff; --plate:#2a3659; --plate-edge:#5b6da0;
+  --arm:#05070b; --arm-halo:#7c89a6; --servo:#ff9a3c; --box:#cf9f60; --box-edge:#e6c08a;
+  --safe:#2cc490; --warn:#f2b52a; --risk:#ff5e4e; --infl:#a98bff; --ray:rgba(125,150,255,.12);
+  --tape:#d6a400; --hl:rgba(125,150,255,.09); --chip-ink:#0c1220; --panel:#141e33; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;margin:0}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:14px}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 24px}
+header.top h1{font-family:var(--f-display);font-weight:600;font-size:clamp(22px,2.4vw,30px);margin:0;letter-spacing:-.015em;text-wrap:balance}
+header.top p{margin:0;color:var(--ink-2);max-width:62ch}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+.stage{position:relative;margin:0;width:100%;aspect-ratio:16/9;max-width:100%;background:var(--stage);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stage svg{display:block;width:100%;height:100%}
+.stage:fullscreen{border:0;border-radius:0;background:var(--stage);display:flex;align-items:center;justify-content:center}
+.stage:fullscreen svg{max-height:100vh}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.controls button{font:600 14px/1 var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 12px;cursor:pointer}
+.controls button:hover{border-color:var(--mirte)}
+.controls button:focus-visible,.chips button:focus-visible,input:focus-visible{outline:2px solid var(--mirte);outline-offset:2px}
+.controls button.primary{background:var(--mirte);color:#fff;border-color:var(--mirte);min-width:80px}
+.scrub{flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:10px}
+.scrub input{flex:1;min-width:0;accent-color:var(--mirte)}
+.time{font-weight:600;font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font:600 13px/1 var(--f-body);color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;padding:8px 12px;cursor:pointer}
+.chips button[aria-current="true"]{color:var(--chip-ink);background:var(--ink);border-color:var(--ink)}
+.notes{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:28px;margin-top:10px}
+.notes h2{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0 0 8px}
+.notes ol{margin:0;padding-left:0;list-style:none;display:grid;gap:10px}
+.notes li{display:grid;grid-template-columns:8.5em minmax(0,1fr);gap:12px}
+.notes li b{font-weight:600;font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.notes p{margin:0 0 10px;max-width:62ch}
+kbd{font:600 12px var(--f-body);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 6px;background:var(--panel)}
+code{font-size:.92em}
+body.clean header.top,body.clean .notes{display:none}
+body.clean .controls{opacity:0;transition:opacity .3s}
+body.clean .controls:hover,body.clean .controls:focus-within{opacity:1}
+@media (max-width:760px){.notes{grid-template-columns:minmax(0,1fr)}.notes li{grid-template-columns:minmax(0,1fr);gap:2px}}
+
+/* ---- SVG vocabulary ---- */
+.bg{fill:var(--stage)}
+.t-hero{font-family:var(--f-display);font-weight:600;fill:var(--ink);letter-spacing:-.025em}
+.t-title{font-family:var(--f-display);font-weight:600;fill:var(--ink);letter-spacing:-.015em}
+.t-num{font-family:var(--f-display);font-weight:600;fill:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.t-body{font-family:var(--f-body);font-weight:500;fill:var(--ink)}
+.t-strong{font-family:var(--f-body);font-weight:700;fill:var(--ink)}
+.t-muted{font-family:var(--f-body);font-weight:500;fill:var(--ink-2)}
+.t-label{font-family:var(--f-body);font-weight:700;fill:var(--ink-2);letter-spacing:.12em}
+.t-chip{font-family:var(--f-body);font-weight:700;fill:var(--chip-ink);letter-spacing:.04em}
+.t-safe{fill:var(--safe)} .t-warn{fill:var(--warn)} .t-risk{fill:var(--risk)} .t-blue{fill:var(--mirte)} .t-infl{fill:var(--infl)}
+.floor{fill:var(--floor)}
+.grid{stroke:var(--line);stroke-width:1;opacity:.7}
+.wall{fill:var(--wall)}
+.rack{fill:url(#hatch);stroke:var(--rack);stroke-width:1.5}
+.pallet{fill:var(--rack-fill);stroke:var(--rack);stroke-width:1.5}
+.table{fill:var(--rack-fill);stroke:var(--mirte);stroke-width:2.5}
+.hatch-line{stroke:var(--rack);stroke-width:1.2}
+.blind-line{stroke:var(--risk);stroke-width:1.6;opacity:.6}
+.zebra{fill:var(--tape);opacity:.45}
+.plan{stroke:var(--mirte);stroke-width:2.5;stroke-dasharray:6 7;fill:none;opacity:.5}
+.rays{stroke:var(--ray);stroke-width:1.2;fill:none}
+.infl-o{fill:var(--infl);opacity:.13}
+.infl-i{fill:var(--infl);opacity:.13}
+.infl-edge{fill:none;stroke:var(--infl);stroke-width:2;stroke-dasharray:5 5;opacity:.7}
+.robot *{vector-effect:non-scaling-stroke}
+.r-base{fill:var(--mirte)}
+.r-plate{fill:var(--plate);stroke:var(--plate-edge);stroke-width:1;opacity:.9}
+.r-wheel{fill:var(--arm)}
+.r-roller{stroke:#9aa3b5;stroke-width:1}
+.r-sensor{fill:var(--arm)}
+.r-lidar{fill:var(--arm);stroke:var(--plate-edge);stroke-width:1}
+.r-turret{fill:var(--servo)}
+.r-arm-halo{stroke:var(--arm-halo);stroke-width:9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.r-arm{stroke:var(--arm);stroke-width:5.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.r-grip{stroke:var(--arm);stroke-width:2.5;fill:none;stroke-linecap:round}
+.r-box{fill:var(--box);stroke:var(--box-edge);stroke-width:1.5}
+.r-tape{stroke:var(--box-edge);stroke-width:2;opacity:.7}
+.r-foot{fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-dasharray:5 4}
+.p-body{fill:var(--warn)} .p-head{fill:var(--ink)}
+.p-ring{fill:none;stroke:var(--risk);stroke-width:3}
+.e-ground{stroke:var(--ink-2);stroke-width:2.5}
+.e-cone-ok{fill:var(--safe);opacity:.18}
+.e-cone-bad{fill:var(--risk);opacity:.14}
+.e-blind{fill:url(#blind)}
+.e-com{fill:var(--stage);stroke:var(--ink);stroke-width:2}
+.e-com-q{fill:var(--ink)}
+.dim{stroke:var(--ink);stroke-width:2;fill:none}
+.divider{stroke:var(--line);stroke-width:2}
+.cap-rule{stroke:var(--line);stroke-width:2}
+.panel-bg{fill:var(--panel);stroke:var(--line);stroke-width:1.2}
+.bar-bg{fill:var(--line)}
+.bar-safe{fill:var(--safe)} .bar-warn{fill:var(--warn)} .bar-risk{fill:var(--risk)} .bar-blue{fill:var(--mirte)} .bar-infl{fill:var(--infl)}
+.hl{fill:var(--hl);stroke:var(--mirte);stroke-width:2}
+.sep{stroke:var(--line);stroke-width:1.5}
+.burst{fill:none;stroke:var(--risk);stroke-width:5}
+.path-ok{stroke:var(--safe);stroke-width:4;stroke-dasharray:10 9;fill:none;stroke-linecap:round}
+.path-bad{stroke:var(--risk);stroke-width:4;stroke-dasharray:10 9;fill:none;stroke-linecap:round}
+.xmark{stroke:var(--risk);stroke-width:6;stroke-linecap:round}
+.node{fill:var(--panel);stroke:var(--ink);stroke-width:2}
+.node-hot{fill:var(--panel);stroke:var(--mirte);stroke-width:3}
+.edge{stroke:var(--ink);stroke-width:2.5;fill:none}
+.edge-fake{stroke:var(--risk);stroke-width:2.5;fill:none;stroke-dasharray:8 7}
+.arrowhead{fill:var(--ink)}
+.dot-a{fill:var(--mirte)} .dot-b{fill:var(--servo)}
+.w-reach{fill:var(--safe)} .w-coll{fill:var(--risk)} .w-block{fill:var(--ink-2)} .w-empty{fill:none;stroke:var(--line);stroke-width:1.2}
+.prog-bg{fill:var(--line)} .prog{fill:var(--mirte)}
+.badge{fill:var(--ink)}
+.accent-rule{stroke:var(--mirte);stroke-width:4}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Industry demo companion · MIRTE Master</div>
+      <h1>Causal Tuner in Motion</h1>
+    </div>
+    <p>A looping motion graphic for the stand. A mobile robot carries a tall box and keeps re-choosing how it holds the box, how fast it drives and how much room it gives obstacles.</p>
+  </header>
+
+  <figure class="stage" id="stage" aria-label="Animated explainer of the self-tuning robot">
+    <svg id="svg" viewBox="0 0 1600 900" role="img" aria-label="Motion graphic">
+      <defs>
+        <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="12" height="12" style="fill:var(--rack-fill)"></rect>
+          <line x1="0" y1="0" x2="0" y2="12" class="hatch-line"></line>
+        </pattern>
+        <pattern id="blind" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+          <line x1="0" y1="0" x2="0" y2="11" class="blind-line"></line>
+        </pattern>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="arrowhead"></path>
+        </marker>
+      </defs>
+      <rect class="bg" x="0" y="0" width="1600" height="900"></rect>
+      <g id="scenes"></g>
+      <g id="chrome"></g>
+    </svg>
+  </figure>
+
+  <div class="controls" id="controls">
+    <button class="primary" id="play" type="button">Pause</button>
+    <div class="scrub"><input id="scrub" type="range" min="0" max="100" step="0.01" value="0" aria-label="Timeline"><span class="time" id="time">0:00 / 0:00</span></div>
+    <button id="clean" type="button" title="Hide everything except the stage (C)">Clean view</button>
+    <button id="fs" type="button" title="Fullscreen (F)">Fullscreen</button>
+    <div class="chips" id="chips" aria-label="Scenes"></div>
+  </div>
+
+  <section class="notes">
+    <div>
+      <h2>What to say</h2>
+      <ol id="script"></ol>
+    </div>
+    <div>
+      <h2>Using it at the stand</h2>
+      <p><kbd>Space</kbd> play or pause · <kbd>←</kbd> <kbd>→</kbd> previous or next scene · <kbd>F</kbd> fullscreen · <kbd>C</kbd> clean view. It loops, so it can run unattended next to the robot.</p>
+      <p>To make a video, go fullscreen and screen-record one loop (OBS, or GNOME's recorder with <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>).</p>
+      <p>The warehouse scenes run a small built-in simulation. The robot's readings come from the drawn map, and its choices follow the tuner's rules: does it fit, can it stop in time, is the risk under the cap, is an arm switch worth it. The setting values are illustrative. The results scene uses the paper's simulation results.</p>
+      <p>Robot dimensions are placeholders near the top of the script (<code>R</code> and <code>POSES</code>). Replace them with the real MIRTE Master numbers.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ---------------------------------------------------------------- helpers
+const NS = "http://www.w3.org/2000/svg";
+const PI = Math.PI, D2R = PI / 180;
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, str, cls, size, extra) {
+  const t = el("text", Object.assign({ x, y, class: cls, "font-size": size }, extra || {}), parent);
+  t.textContent = str;
+  return t;
+}
+function lines(parent, x, y, arr, cls, size, lh, extra) {
+  const t = el("text", Object.assign({ x, y, class: cls, "font-size": size }, extra || {}), parent);
+  arr.forEach((s, i) => { const ts = el("tspan", { x, dy: i === 0 ? 0 : lh }, t); ts.textContent = s; });
+  return t;
+}
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, u) => a + (b - a) * u;
+const ease = u => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+const seg = (t, a, b) => ease(clamp((t - a) / (b - a)));
+const win = (t, a, b, f = 0.5) => clamp((t - a) / f) * clamp((b - t) / f);
+const show = (g, a) => { g.setAttribute("opacity", a.toFixed(3)); g.style.display = a > 0.001 ? "" : "none"; };
+const fade = (n, a) => n.setAttribute("opacity", clamp(a).toFixed(3));
+const fmt = (v, d) => v.toFixed(d);
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+// ---------------------------------------------------------------- robot model (edit to match the real MIRTE Master)
+// Robot frame: x forward, y to the robot's right (screen y points down), metres.
+const R = {
+  halfL: 0.22, halfW: 0.15, wheelX: 0.14, wheelY: 0.185, wheelHalfL: 0.065, wheelHalfW: 0.035, outerHalfW: 0.22,
+  box: 0.22, margin: 0.05, turret: { x: 0.10, y: -0.06 }, lidar: { x: 0.17, y: 0 },
+  L1: 0.2, L2: 0.2,
+};
+// Arm poses as polar offsets of the box centre around the arm turret (degrees, metres).
+const POSES = {
+  side:  { a: -102.5, r: 0.369 },   // box hangs beside the robot, low: sensors clear, footprint wide
+  tuck:  { a: -190,   r: 0.061 },   // box lifted over the base: narrow, but top-heavy
+  front: { a: 11.3,   r: 0.306 },   // box in front, low: blocks the sensors ahead
+};
+// Side elevation of the same poses: box centre x and box bottom height (metres).
+const ELEV = { front: { x: 0.40, y0: 0.06 }, side: { x: 0.02, y0: 0.06 }, tuck: { x: 0.04, y0: 0.26 } };
+const BOX_H = 0.50;
+
+function boxCentre(a, r) { return { x: R.turret.x + r * Math.cos(a * D2R), y: R.turret.y + r * Math.sin(a * D2R) }; }
+function footprint(a, r) {
+  const b = boxCentre(a, r), h = R.box / 2;
+  const minX = Math.min(-R.halfL, b.x - h), maxX = Math.max(R.halfL, b.x + h);
+  const minY = Math.min(-R.outerHalfW, b.y - h), maxY = Math.max(R.outerHalfW, b.y + h);
+  return { minX, maxX, minY, maxY, width: maxY - minY, length: maxX - minX };
+}
+const NEED = {
+  side: footprint(POSES.side.a, POSES.side.r).width + 2 * R.margin,
+  tuck: footprint(POSES.tuck.a, POSES.tuck.r).width + 2 * R.margin,
+};
+function blendPose(from, to, u) {
+  const A = POSES[from], B = POSES[to], e = ease(clamp(u));
+  return { a: lerp(A.a, B.a, e), r: lerp(A.r, B.r, e), from, to, u: clamp(u) };
+}
+
+function makeRobot(parent, S) {
+  const g = el("g", { class: "robot" }, parent);
+  const foot = el("rect", { class: "r-foot" }, g);
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+    el("rect", { x: sx * R.wheelX - R.wheelHalfL, y: sy * R.wheelY - R.wheelHalfW, width: 2 * R.wheelHalfL, height: 2 * R.wheelHalfW, rx: 0.012, class: "r-wheel" }, g);
+    const dir = sx * sy > 0 ? 1 : -1;
+    for (let k = -1; k <= 1; k++) {
+      const cx = sx * R.wheelX + k * 0.04, cy = sy * R.wheelY;
+      el("line", { x1: cx - 0.014, y1: cy - 0.024 * dir, x2: cx + 0.014, y2: cy + 0.024 * dir, class: "r-roller" }, g);
+    }
+  }
+  el("rect", { x: -R.halfL, y: -R.halfW, width: 2 * R.halfL, height: 2 * R.halfW, rx: 0.03, class: "r-base" }, g);
+  el("rect", { x: -R.halfL + 0.025, y: -R.halfW + 0.025, width: 2 * R.halfL - 0.05, height: 2 * R.halfW - 0.05, rx: 0.02, class: "r-plate" }, g);
+  el("rect", { x: R.halfL - 0.012, y: -0.07, width: 0.022, height: 0.14, rx: 0.006, class: "r-sensor" }, g);
+  el("circle", { cx: R.lidar.x, cy: R.lidar.y, r: 0.03, class: "r-lidar" }, g);
+  el("circle", { cx: R.turret.x, cy: R.turret.y, r: 0.045, class: "r-turret" }, g);
+  const boxG = el("g", {}, g);
+  const boxR = el("rect", { width: R.box, height: R.box, rx: 0.012, class: "r-box" }, boxG);
+  const tape = el("line", { class: "r-tape" }, boxG);
+  const halo = el("path", { class: "r-arm-halo" }, g);
+  const arm = el("path", { class: "r-arm" }, g);
+  const grip = el("path", { class: "r-grip" }, g);
+  return {
+    g,
+    update(o) {
+      g.setAttribute("transform", `translate(${(o.x * S).toFixed(2)},${(o.y * S).toFixed(2)}) rotate(${(o.th / D2R).toFixed(2)}) scale(${S})`);
+      const b = boxCentre(o.a, o.r), h = R.box / 2;
+      boxR.setAttribute("x", b.x - h); boxR.setAttribute("y", b.y - h);
+      tape.setAttribute("x1", b.x - h); tape.setAttribute("x2", b.x + h); tape.setAttribute("y1", b.y); tape.setAttribute("y2", b.y);
+      const dx = b.x - R.turret.x, dy = b.y - R.turret.y, d = clamp(Math.hypot(dx, dy), 0.02, R.L1 + R.L2 - 0.001);
+      const base = Math.atan2(dy, dx);
+      const phi = Math.acos(clamp((R.L1 * R.L1 + d * d - R.L2 * R.L2) / (2 * R.L1 * d), -1, 1));
+      const ex = R.turret.x + R.L1 * Math.cos(base + phi), ey = R.turret.y + R.L1 * Math.sin(base + phi);
+      const p = `M${R.turret.x} ${R.turret.y} L${ex.toFixed(4)} ${ey.toFixed(4)} L${b.x.toFixed(4)} ${b.y.toFixed(4)}`;
+      arm.setAttribute("d", p); halo.setAttribute("d", p);
+      const ga = Math.atan2(b.y - ey, b.x - ex), px = -Math.sin(ga) * 0.05, py = Math.cos(ga) * 0.05;
+      grip.setAttribute("d", `M${b.x + px} ${b.y + py} L${b.x - px} ${b.y - py}`);
+      const f = footprint(o.a, o.r), pad = 0.025;
+      foot.setAttribute("x", f.minX - pad); foot.setAttribute("y", f.minY - pad);
+      foot.setAttribute("width", f.length + 2 * pad); foot.setAttribute("height", f.width + 2 * pad);
+      foot.style.display = o.foot === false ? "none" : "";
+      g.setAttribute("opacity", o.opacity == null ? 1 : o.opacity);
+    },
+  };
+}
+function localToWorld(o, lx, ly) {
+  const c = Math.cos(o.th), s = Math.sin(o.th);
+  return { x: o.x + c * lx - s * ly, y: o.y + s * lx + c * ly };
+}
+function makePerson(parent, S) {
+  const g = el("g", {}, parent);
+  const ring = el("circle", { r: 0.42 * S, class: "p-ring" }, g);
+  el("ellipse", { rx: 0.14 * S, ry: 0.25 * S, class: "p-body" }, g);
+  el("circle", { r: 0.1 * S, class: "p-head" }, g);
+  return {
+    g, update(x, y, th, alpha, alarm) {
+      g.setAttribute("transform", `translate(${x * S},${y * S}) rotate(${th / D2R})`);
+      show(g, alpha); ring.style.display = alarm ? "" : "none";
+    },
+  };
+}
+// Inflation halo: a soft band of width r around an obstacle (two layers fake the cost falling off).
+function makeHalo(parent) {
+  const g = el("g", {}, parent);
+  const o = el("g", { class: "infl-o" }, g), i = el("g", { class: "infl-i" }, g);
+  const items = [];
+  return {
+    g,
+    rect(x, y, w, h) { items.push({ k: "r", x, y, w, h, eo: el("rect", {}, o), ei: el("rect", {}, i) }); return items.length - 1; },
+    circle(cx, cy, rad) { items.push({ k: "c", x: cx, y: cy, rad, eo: el("circle", {}, o), ei: el("circle", {}, i) }); return items.length - 1; },
+    move(idx, x, y, vis) { const it = items[idx]; it.x = x; it.y = y; it.vis = vis; },
+    update(r, S) {
+      for (const it of items) {
+        for (const [e, rr] of [[it.eo, r], [it.ei, r * 0.5]]) {
+          if (it.k === "r") {
+            e.setAttribute("x", (it.x - rr) * S); e.setAttribute("y", (it.y - rr) * S);
+            e.setAttribute("width", (it.w + 2 * rr) * S); e.setAttribute("height", (it.h + 2 * rr) * S); e.setAttribute("rx", rr * S);
+          } else {
+            e.setAttribute("cx", it.x * S); e.setAttribute("cy", it.y * S); e.setAttribute("r", (it.rad + rr) * S);
+            e.style.display = it.vis === false ? "none" : "";
+          }
+        }
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------- geometry: ray casting
+function rectSegs(r) {
+  const { x, y, w, h } = r;
+  return [[x, y, x + w, y], [x + w, y, x + w, y + h], [x + w, y + h, x, y + h], [x, y + h, x, y]];
+}
+function castRay(ox, oy, dx, dy, maxR, segs, circles) {
+  let best = maxR;
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i], ex = s[2] - s[0], ey = s[3] - s[1];
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const qx = s[0] - ox, qy = s[1] - oy;
+    const t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+    if (t > 0 && t < best && u >= 0 && u <= 1) best = t;
+  }
+  if (circles) for (const c of circles) {
+    const fx = ox - c.x, fy = oy - c.y, b = fx * dx + fy * dy, cc = fx * fx + fy * fy - c.r * c.r, disc = b * b - cc;
+    if (cc < 0) { best = 0; continue; }
+    if (disc >= 0) { const t = -b - Math.sqrt(disc); if (t > 0 && t < best) best = t; }
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------- the warehouse map (metres)
+const MAP = { S: 90, ox: 44, oy: 116, W: 11, H: 7.2 };
+const OBST = [
+  { x: 0, y: 0, w: 11, h: 0.15, k: "wall" }, { x: 0, y: 7.05, w: 11, h: 0.15, k: "wall" },
+  { x: 0, y: 0, w: 0.15, h: 7.2, k: "wall" }, { x: 10.85, y: 0, w: 0.15, h: 7.2, k: "wall" },
+  { x: 5.0, y: 0.15, w: 0.25, h: 5.14, k: "wall" }, { x: 5.0, y: 5.91, w: 0.25, h: 1.14, k: "wall" },
+  { x: 0.3, y: 4.7, w: 0.6, h: 1.8, k: "rack" }, { x: 1.0, y: 0.3, w: 3.6, h: 0.6, k: "rack" },
+  { x: 1.6, y: 3.4, w: 2.6, h: 0.8, k: "pallet" },
+  { x: 6.4, y: 0.3, w: 0.5, h: 2.7, k: "rack" }, { x: 5.6, y: 4.4, w: 1.3, h: 0.5, k: "rack" },
+  { x: 10.0, y: 4.4, w: 0.7, h: 2.4, k: "rack" },
+  { x: 9.95, y: 1.1, w: 0.8, h: 1.0, k: "table" },
+];
+const SEGS_ALL = OBST.flatMap(rectSegs);
+const SEGS_RISK = OBST.filter(o => o.k !== "table").flatMap(rectSegs); // the place table is the docking target, not a hazard
+const PERSON = { y: 3.6, x0: 10.5, x1: 5.7, v: 0.7, r: 0.25, start: 0 }; // start is set after a dry run
+
+function buildPath(wps, rad) {
+  const pts = [wps[0]];
+  for (let i = 1; i < wps.length - 1; i++) {
+    const [px, py] = wps[i - 1], [cx, cy] = wps[i], [nx, ny] = wps[i + 1];
+    const d1 = Math.hypot(cx - px, cy - py), d2 = Math.hypot(nx - cx, ny - cy);
+    const ax = cx + (px - cx) / d1 * rad, ay = cy + (py - cy) / d1 * rad, bx = cx + (nx - cx) / d2 * rad, by = cy + (ny - cy) / d2 * rad;
+    pts.push([ax, ay]);
+    for (let k = 1; k <= 18; k++) { const u = k / 18; pts.push([(1 - u) ** 2 * ax + 2 * (1 - u) * u * cx + u * u * bx, (1 - u) ** 2 * ay + 2 * (1 - u) * u * cy + u * u * by]); }
+  }
+  pts.push(wps[wps.length - 1]);
+  const S = [0];
+  for (let i = 1; i < pts.length; i++) S.push(S[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  return { pts, S, len: S[S.length - 1] };
+}
+const PATH = buildPath([[1.4, 5.6], [8.2, 5.6], [8.2, 1.6], [9.45, 1.6]], 0.6);
+function pathPoint(s) {
+  s = clamp(s, 0, PATH.len);
+  let lo = 0, hi = PATH.S.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (PATH.S[m] <= s) lo = m; else hi = m; }
+  const L = PATH.S[hi] - PATH.S[lo] || 1e-9, u = (s - PATH.S[lo]) / L;
+  return { x: lerp(PATH.pts[lo][0], PATH.pts[hi][0], u), y: lerp(PATH.pts[lo][1], PATH.pts[hi][1], u) };
+}
+function pathPose(s) {
+  const p = pathPoint(s), a = pathPoint(s - 0.08), b = pathPoint(s + 0.08);
+  return { x: p.x, y: p.y, th: Math.atan2(b.y - a.y, b.x - a.x) };
+}
+function personAt(tau) {
+  const t = tau - PERSON.start;
+  if (t < 0) return null;
+  const x = Math.max(PERSON.x1, PERSON.x0 - PERSON.v * t);
+  const alpha = clamp(t / 0.4) * clamp((PERSON.x0 - PERSON.v * t - PERSON.x1 + 0.6) / 0.6);
+  if (alpha <= 0) return null;
+  return { x, y: PERSON.y, r: PERSON.r, alpha };
+}
+
+// ---------------------------------------------------------------- what the robot measures (computed from the drawn map)
+const NRAYS = 120;
+function riskState(s, tau, wantRays) {
+  const pose = pathPose(s), L = localToWorld(pose, R.lidar.x, R.lidar.y);
+  const per = personAt(tau), circles = per ? [per] : [];
+  const d = new Array(NRAYS), rays = [];
+  let rmin = 9, dFront = 4;
+  for (let i = 0; i < NRAYS; i++) {
+    const rel = -PI + (i / NRAYS) * 2 * PI, ang = pose.th + rel, dx = Math.cos(ang), dy = Math.sin(ang);
+    const di = castRay(L.x, L.y, dx, dy, 4, SEGS_RISK, circles);
+    d[i] = di; rmin = Math.min(rmin, di);
+    const fwd = di * Math.cos(rel), lat = Math.abs(di * Math.sin(rel));
+    if (fwd > 0 && lat < R.outerHalfW + 0.04 && di < 4) dFront = Math.min(dFront, fwd);
+    if (wantRays && i % 2 === 0) { const dv = castRay(L.x, L.y, dx, dy, 2.6, SEGS_ALL, circles); rays.push([L.x, L.y, L.x + dx * dv, L.y + dy * dv]); }
+  }
+  let free = 0, best = 0;
+  for (let k = 0; k < 2 * NRAYS; k++) { if (d[k % NRAYS] > 1.5) { free++; best = Math.max(best, free); } else free = 0; }
+  const clear = Math.min(360, best * 360 / NRAYS);
+  const dens = 100 * d.filter(v => v < 1.5).length / NRAYS;
+  let width = 6;
+  for (let k = 0; k <= 10; k++) {
+    const sk = s - 0.3 + k * 0.19; if (sk > PATH.len) break;
+    const p = pathPose(sk), nx = -Math.sin(p.th), ny = Math.cos(p.th);
+    const l = castRay(p.x, p.y, -nx, -ny, 3, SEGS_RISK, circles), r = castRay(p.x, p.y, nx, ny, 3, SEGS_RISK, circles);
+    width = Math.min(width, l + r);
+  }
+  let bend = 0, bendNear = 0, prev = pathPose(s).th;
+  for (let k = 1; k <= 30; k++) {
+    const th = pathPose(s + k * 0.1).th; let dth = Math.abs(th - prev); if (dth > PI) dth = 2 * PI - dth;
+    bend += dth; if (k <= 12) bendNear += dth; prev = th;
+  }
+  return {
+    pose, rays, per,
+    rmin, width: Math.min(width, 6), ttc: Math.min(4, dFront / 1.0), dFront, dens, clear,
+    bend: bend / D2R, bendNear: bendNear / D2R,
+  };
+}
+// Illustrative stand-in for the learned collision model: risk rises as time-to-contact falls; side-carry is riskier.
+const PMAX = 0.20;
+function pColl(g, kind) {
+  const G = Math.pow(clamp((1.8 - g.ttc) / 1.4), 1.2);
+  return kind === "side" ? 0.02 + 0.75 * G : 0.012 + 0.30 * G;
+}
+
+// ---------------------------------------------------------------- closed-loop run of the tuner along the route
+const VMAX = 0.8, A_ACC = 0.5, A_BRK = 1.4, DT = 0.05;
+// Obstacle margin (inflation radius) per situation, in metres.
+const MARGIN = { open: 0.30, narrow: 0.15, obstacle: 0.55, emergency: 0.55, dock: 0.15 };
+function runSim(withPerson) {
+  const rec = [], events = [{ t: 0, k: "start" }];
+  let s = 0, v = 0, arm = { from: "side", to: "side", t0: 0, dur: 0 }, sideOkSince = null, arrived = null, emerg = false;
+  const par = { spd: 85, inf: MARGIN.open };
+  let tauAtTarget = null;
+  for (let tau = 0; tau <= 40; tau += DT) {
+    if (!withPerson) PERSON.start = 1e9;
+    const g = riskState(s, tau, false);
+    const pS = pColl(g, "side"), pT = pColl(g, "tuck");
+    const sideOK = g.width >= NEED.side && pS <= PMAX, tuckOK = g.width >= NEED.tuck && pT <= PMAX;
+    const docking = PATH.len - s < 1.6;
+    const emergency = !sideOK && !tuckOK && arrived == null && !docking;
+    const moving = tau < arm.t0 + arm.dur;
+    if (sideOK) { if (sideOkSince == null) sideOkSince = tau; } else sideOkSince = null;
+    let why = null;
+    if (!moving && arrived == null && !docking) {
+      if (arm.to === "side" && !sideOK) {
+        why = g.per && Math.hypot(g.per.x - g.pose.x, g.per.y - g.pose.y) < 3 ? "tuck-person" : "tuck-door";
+        arm = { from: "side", to: "tuck", t0: tau, dur: emergency ? 1.6 : 2.0 };
+        events.push({ t: tau, k: why });
+        sideOkSince = null;
+      } else if (arm.to === "tuck" && sideOK && tau - sideOkSince >= 0.8) {
+        arm = { from: "tuck", to: "side", t0: tau, dur: 2.0 }; events.push({ t: tau, k: "extend" });
+      }
+    }
+    if (emergency && !emerg) events.push({ t: tau, k: "emergency" });
+    emerg = emergency;
+    if (docking && !events.some(e => e.k === "dock")) events.push({ t: tau, k: "dock" });
+    if (arrived != null && arm.to !== "front" && tau - arrived > 0.5 && tau >= arm.t0 + arm.dur) {
+      arm = { from: arm.to, to: "front", t0: tau, dur: 1.6 }; events.push({ t: tau, k: "place" });
+    }
+    const transitioning = tau < arm.t0 + arm.dur;
+    const mode = emergency ? "emergency" : docking ? "dock" : g.ttc < 2.2 ? "obstacle" : g.width < 1.3 ? "narrow" : "open";
+    let pct = { open: 85, narrow: 50, obstacle: clamp(30 + (g.ttc - 0.6) / 1.6 * 25, 30, 55), emergency: 30, dock: 40 }[mode];
+    if (transitioning) pct = Math.min(pct, 35); else if (arm.to === "tuck") pct = Math.min(pct, 55);
+    if (g.bendNear > 45) pct = Math.min(pct, 60);
+    const k = Math.min(1, DT / 0.35);
+    par.spd += (pct - par.spd) * k; par.inf += (MARGIN[mode] - par.inf) * k;
+    let vT = par.spd / 100 * VMAX;
+    vT = Math.min(vT, Math.sqrt(2 * 0.5 * Math.max(0, g.dFront - 0.3)));
+    vT = Math.min(vT, Math.sqrt(2 * 0.5 * Math.max(0, PATH.len - s)));
+    if (emergency && g.dFront < 0.8) vT = Math.min(vT, 0.04);
+    if (tau < 0.6 || arrived != null) vT = 0;
+    v += clamp(vT - v, -A_BRK * DT, A_ACC * DT);
+    const u = transitioning ? (tau - arm.t0) / arm.dur : 1;
+    rec.push({ tau, s, v, arm: blendPose(arm.from, arm.to, u), par: { ...par }, g, pS, pT, sideOK, tuckOK, mode, emergency, transitioning, docking });
+    s = Math.min(PATH.len, s + v * DT);
+    if (tauAtTarget == null && s >= 7.14) tauAtTarget = tau;
+    if (arrived == null && s >= PATH.len - 0.004) { arrived = tau; events.push({ t: tau, k: "arrive" }); }
+    if (arrived != null && tau > arrived + 4.2) break;
+  }
+  return { rec, events, arrived, len: rec[rec.length - 1].tau, tauAtTarget };
+}
+// Dry run without the person to time the crossing, then the real run.
+const dry = runSim(false);
+PERSON.start = dry.tauAtTarget + 0.25 - (PERSON.x0 - 8.71) / PERSON.v;
+const SIM = runSim(true);
+function simAt(tau) { const i = clamp(Math.round(tau / DT), 0, SIM.rec.length - 1); return SIM.rec[i]; }
+
+// ---------------------------------------------------------------- scene table
+const SCENES = [
+  { id: "intro", name: "Intro", dur: 6.5 },
+  { id: "problem", name: "The job", dur: 14 },
+  { id: "margin", name: "Obstacle margin", dur: 13.5 },
+  { id: "fixed", name: "One setting fails", dur: 12 },
+  { id: "sense", name: "Measure", dur: 10 },
+  { id: "mission", name: "Adapt live", dur: SIM.len + 0.2 },
+  { id: "causal", name: "How it learned", dur: 14 },
+  { id: "results", name: "Results", dur: 10 },
+  { id: "outro", name: "Takeaway", dur: 8 },
+];
+let acc = 0; for (const sc of SCENES) { sc.t0 = acc; acc += sc.dur; sc.t1 = acc; }
+const DUR = acc;
+const SC = Object.fromEntries(SCENES.map(s => [s.id, s]));
+const TITLES = {
+  intro: ["", ""], problem: ["THE JOB", "Carry a tall box"], margin: ["THE OTHER KEY SETTING", "Obstacle margin"],
+  fixed: ["THE PROBLEM", "One fixed setting fails somewhere"], sense: ["STEP 1", "Measure the surroundings"],
+  mission: ["STEP 2", "Pick the best safe setting, live"], causal: ["HOW IT LEARNED", "Experiments, not guesses"],
+  results: ["RESULTS", "Same 30 routes, five ways"], outro: ["", ""],
+};
+
+// captions: absolute time ranges; one main line, an optional short second line
+const CAPS = [];
+function cap(scene, a, b, l1, l2) { CAPS.push({ t0: SC[scene].t0 + a, t1: SC[scene].t0 + Math.min(b, SC[scene].dur), l1, l2: l2 || "" }); }
+cap("problem", 0, 5.3, "In front, the box blinds the robot.");
+cap("problem", 5.3, 10.3, "At the side, it sees clearly, but it is much wider.");
+cap("problem", 10.3, 14, "Lifted in, it is narrow again, but top-heavy.", "Good for a tight spot, not for the whole trip.");
+cap("margin", 0, 6.6, "The margin is how much room the robot keeps from obstacles.", "Too big, and a narrow doorway looks closed.");
+cap("margin", 6.6, 13.5, "Near people, a bigger margin keeps a safe distance.", "So the right margin depends on the place.");
+cap("fixed", 0, 6.2, "Arm always out: it cannot fit through the door.");
+cap("fixed", 6.2, 12, "Arm always in, one speed: it cannot stop for a person.");
+const MEASURES = [
+  ["Nearest obstacle", "rmin", v => fmt(v, 1) + " m"],
+  ["Passage width", "width", v => (v >= 3 ? "3+" : fmt(v, 2)) + " m"],
+  ["Time to contact", "ttc", v => (v >= 4 ? "4+" : fmt(v, 1)) + " s"],
+  ["Clutter", "dens", v => fmt(v, 0) + " %"],
+  ["Open directions", "clear", v => fmt(v, 0) + "°"],
+  ["Turn ahead", "bend", v => fmt(v, 0) + "°"],
+];
+cap("sense", 0, 4.6, "Five times a second, it measures six things first.", "Straight from its laser scanner and the map.");
+cap("sense", 4.6, 10, "It measures before changing anything.", "So a setting can never fool the numbers it is judged by.");
+const EV_TEXT = {
+  start: ["Open aisle: box at the side, full speed.", "Normal margin around obstacles."],
+  "tuck-door": ["The doorway is too narrow for the box at the side.", "Lift the box in, slow down, shrink the margin."],
+  extend: ["Through the door: the box goes back to the side.", "It only switches when it pays off."],
+  "tuck-person": ["A person steps into the aisle.", "Lift the box in, slow down, widen the margin."],
+  emergency: ["The person is too close: safety first.", "Smallest size, slowest speed."],
+  dock: ["Approaching the table.", "Small margin, so it can get close enough to place the box."],
+  place: ["Delivered.", "Settings re-chosen five times a second along the way."],
+};
+{
+  let last = -9, extendCount = 0;
+  const evs = SIM.events.filter(e => EV_TEXT[e.k]);
+  const starts = evs.map(e => { const t = Math.max(e.t, last + 2.4); last = t; return t; });
+  evs.forEach((e, i) => {
+    let tx = EV_TEXT[e.k];
+    if (e.k === "extend") { extendCount++; if (extendCount > 1) tx = ["Aisle clear: box back to the side, speed back up.", "Margin back to normal."]; }
+    cap("mission", starts[i], i + 1 < evs.length ? starts[i + 1] : SC.mission.dur, tx[0], tx[1]);
+  });
+}
+cap("causal", 0, 6.5, "Watching a robot drive can fool you.", "It drives fast where it is open, and open places are safe anyway.");
+cap("causal", 6.5, 14, "So it learned by experiment, like an A/B test.", "Random settings, in every kind of place, thousands of times.");
+cap("results", 0, 10, "Our tuner completed 22 of 30 routes, in a building it had never seen.", "Every fixed setting did worse. The trade-off: it drives slower.");
+
+// ---------------------------------------------------------------- build scenes
+const root = document.getElementById("scenes");
+const G = {};
+for (const sc of SCENES) G[sc.id] = el("g", { id: "sc-" + sc.id }, root);
+G.map = el("g", { id: "sc-map" }, root); root.insertBefore(G.map, G.sense);
+
+const chrome = document.getElementById("chrome");
+const capBand = el("g", {}, chrome);
+el("line", { x1: 44, x2: 1556, y1: 790, y2: 790, class: "cap-rule" }, capBand);
+const cap1 = txt(capBand, 44, 838, "", "t-title", 36);
+const cap2 = txt(capBand, 44, 876, "", "t-muted", 25);
+const eyebrow = txt(chrome, 44, 46, "", "t-label", 18);
+const title = txt(chrome, 44, 92, "", "t-title", 40);
+el("rect", { x: 0, y: 895, width: 1600, height: 5, class: "prog-bg" }, chrome);
+const prog = el("rect", { x: 0, y: 895, width: 0, height: 5, class: "prog" }, chrome);
+
+// ---------- intro
+const I = {};
+{
+  const g = G.intro;
+  I.eb = txt(g, 120, 290, "MOBILE ROBOT THAT TUNES ITSELF", "t-label", 22);
+  I.h1 = lines(g, 114, 390, ["The right robot settings", "depend on where it is."], "t-hero", 84, 100);
+  I.sub = txt(g, 120, 560, "So this robot measures its surroundings and re-chooses them as it drives.", "t-muted", 32);
+  const lane = el("g", { transform: "translate(0,712)" }, g);
+  I.robot = makeRobot(lane, 130);
+}
+// ---------- problem: side view + footprint from above
+const P = {};
+{
+  const g = G.problem;
+  el("line", { x1: 930, x2: 930, y1: 150, y2: 760, class: "divider" }, g);
+  txt(g, 980, 170, "FROM ABOVE", "t-label", 18);
+  const E = 560, ox = 360, oy = 735, X = x => ox + x * E, Y = y => oy - y * E;
+  P.X = X; P.Y = Y; P.E = E;
+  const eg = el("g", {}, g);
+  el("line", { x1: 60, x2: 900, y1: oy, y2: oy, class: "e-ground" }, eg);
+  const cam = { x: 0.245, y: 0.10 }, half = 21 * D2R, Lc = 0.80;
+  const gx = cam.x + cam.y / Math.tan(half), fx = cam.x + Lc * Math.cos(half), top = cam.y + Lc * Math.sin(half);
+  P.coneOk = el("path", { d: `M${X(cam.x)} ${Y(cam.y)} L${X(gx)} ${Y(0)} L${X(fx)} ${Y(0)} L${X(fx)} ${Y(top)} Z`, class: "e-cone-ok" }, eg);
+  P.coneBadG = el("g", {}, eg);
+  const yAt = (x, sgn) => cam.y + sgn * (x - cam.x) * Math.tan(half);
+  el("path", { d: `M${X(cam.x)} ${Y(cam.y)} L${X(0.29)} ${Y(Math.max(0, yAt(0.29, -1)))} L${X(0.29)} ${Y(yAt(0.29, 1))} Z`, class: "e-cone-bad" }, P.coneBadG);
+  el("path", { d: `M${X(0.51)} ${Y(0)} L${X(fx)} ${Y(0)} L${X(fx)} ${Y(top)} L${X(0.51)} ${Y(yAt(0.51, 1))} Z`, class: "e-blind" }, P.coneBadG);
+  txt(P.coneBadG, X(0.80), Y(0.11), "CAN'T SEE", "t-label t-risk", 22, { "text-anchor": "middle" });
+  P.seeLbl = txt(eg, X(0.80), Y(0.11), "CLEAR VIEW", "t-label t-safe", 22, { "text-anchor": "middle" });
+  for (const wx of [-0.14, 0.14]) { el("circle", { cx: X(wx), cy: Y(0.05), r: 0.05 * E, class: "r-wheel" }, eg); el("circle", { cx: X(wx), cy: Y(0.05), r: 0.022 * E, style: "fill:#9aa3b5" }, eg); }
+  el("rect", { x: X(-0.22), y: Y(0.16), width: 0.44 * E, height: 0.12 * E, rx: 9, class: "r-base" }, eg);
+  el("rect", { x: X(0.218), y: Y(0.13), width: 0.028 * E, height: 0.06 * E, rx: 3, class: "r-sensor" }, eg);
+  for (const sx of [-0.18, 0.0, 0.18]) el("rect", { x: X(sx) - 2, y: Y(0.195), width: 4, height: 0.035 * E, class: "r-wheel" }, eg);
+  el("rect", { x: X(-0.21), y: Y(0.205), width: 0.42 * E, height: 0.012 * E, class: "r-plate" }, eg);
+  el("rect", { x: X(0.13), y: Y(0.235), width: 0.06 * E, height: 0.03 * E, rx: 3, class: "r-lidar" }, eg);
+  el("rect", { x: X(0.06), y: Y(0.27), width: 0.08 * E, height: 0.06 * E, rx: 4, class: "r-turret" }, eg);
+  P.armHalo = el("path", { class: "r-arm-halo", style: "stroke-width:18" }, eg);
+  P.arm = el("path", { class: "r-arm", style: "stroke-width:12" }, eg);
+  P.boxG = el("g", {}, eg);
+  P.box = el("rect", { width: 0.22 * E, height: BOX_H * E, rx: 5, class: "r-box" }, P.boxG);
+  P.tape = el("line", { class: "r-tape", style: "stroke-width:3" }, P.boxG);
+  P.grip = el("rect", { width: 18, height: 34, rx: 4, class: "r-sensor" }, eg);
+  P.com = el("g", {}, eg);
+  el("circle", { r: 13, class: "e-com" }, P.com);
+  el("path", { d: "M0 0 L0 -13 A13 13 0 0 1 13 0 Z M0 0 L0 13 A13 13 0 0 1 -13 0 Z", class: "e-com-q" }, P.com);
+  P.comLead = el("line", { class: "e-ground", style: "stroke-width:1.5;stroke-dasharray:4 4" }, eg);
+  P.comLbl = txt(eg, 0, 0, "weight centre", "t-muted", 20, { "text-anchor": "end" });
+  P.poseName = txt(g, 60, 190, "", "t-title", 46);
+  P.poseVerdict = txt(g, 60, 236, "", "t-strong", 26);
+  // footprint from above
+  const tv = el("g", { transform: "translate(1245,470)" }, g);
+  P.top = makeRobot(tv, 330);
+  P.dimG = el("g", {}, g);
+  P.dim = el("path", { class: "dim", "marker-start": "url(#arr)", "marker-end": "url(#arr)" }, P.dimG);
+  P.dimLbl = txt(P.dimG, 0, 0, "", "t-num", 34);
+  P.dimSub = txt(P.dimG, 0, 0, "wide", "t-muted", 20);
+}
+// ---------- margin: what the inflation radius does
+const K = {};
+{
+  const g = G.margin;
+  el("line", { x1: 800, x2: 800, y1: 150, y2: 760, class: "divider" }, g);
+  // left: a doorway
+  const SL = 220, cx = 400, wy = 480, hw = 0.1, gapHalf = 0.31;
+  K.left = el("g", {}, g);
+  txt(K.left, 70, 170, "AT A DOORWAY", "t-label", 18);
+  const lw = el("g", { transform: `translate(0,0)` }, K.left);
+  K.lHalo = makeHalo(lw);
+  const wallL = { x: 110 / SL, y: wy / SL - hw, w: (cx / SL - gapHalf) - 110 / SL, h: 2 * hw };
+  const wallR = { x: cx / SL + gapHalf, y: wy / SL - hw, w: 690 / SL - (cx / SL + gapHalf), h: 2 * hw };
+  for (const w of [wallL, wallR]) { K.lHalo.rect(w.x, w.y, w.w, w.h); el("rect", { x: w.x * SL, y: w.y * SL, width: w.w * SL, height: w.h * SL, class: "wall" }, lw); }
+  K.lPathOk = el("path", { d: `M${cx} 700 L${cx} 330`, class: "path-ok" }, lw);
+  K.lPathBad = el("path", { class: "path-bad" }, lw);
+  K.lX = el("g", {}, lw);
+  el("line", { x1: -16, y1: -16, x2: 16, y2: 16, class: "xmark" }, K.lX);
+  el("line", { x1: 16, y1: -16, x2: -16, y2: 16, class: "xmark" }, K.lX);
+  K.wy = wy; K.hw = hw;
+  K.lRobot = makeRobot(lw, SL);
+  K.lVal = txt(K.left, 70, 230, "", "t-num t-infl", 40);
+  K.lStatus = txt(K.left, 70, 276, "", "t-strong", 28);
+  K.SL = SL; K.cx = cx;
+  // right: passing a person
+  const SR = 200, px = 1200, py = 455, base = 0.62;
+  K.right = el("g", {}, g);
+  txt(K.right, 850, 170, "PASSING A PERSON", "t-label", 18);
+  const rw = el("g", {}, K.right);
+  K.rHalo = makeHalo(rw);
+  K.rHalo.circle(px / SR, py / SR, 0.25);
+  K.rPath = el("path", { class: "plan", style: "opacity:.8" }, rw);
+  const per = makePerson(rw, SR); per.update(px / SR, py / SR, PI / 2, 1, false);
+  K.rRobot = makeRobot(rw, SR);
+  K.rGap = el("line", { class: "dim" }, rw);
+  K.rGapLbl = txt(rw, 0, 0, "", "t-strong", 24);
+  K.rVal = txt(K.right, 850, 230, "", "t-num t-infl", 40);
+  K.rStatus = txt(K.right, 850, 276, "", "t-strong", 28);
+  K.SR = SR; K.px = px / SR; K.py = py / SR; K.base = base;
+}
+// ---------- fixed: two lanes
+const F = {};
+{
+  const g = G.fixed, S = 100, ox = 150, DOOR = 6.4, PX = 9.9;
+  const mk = (oy, label, stat, gap) => {
+    const lane = el("g", { transform: `translate(${ox},${oy})` }, g);
+    txt(g, ox, oy - 52, label, "t-strong", 28);
+    txt(g, ox, oy - 20, stat, "t-muted", 21);
+    el("rect", { x: 0, y: 0, width: 13 * S, height: 2 * S, class: "floor" }, lane);
+    el("rect", { x: 0, y: -0.12 * S, width: 13 * S, height: 0.12 * S, class: "wall" }, lane);
+    if (gap) {
+      el("rect", { x: 0, y: 2 * S, width: (PX - 0.45) * S, height: 0.12 * S, class: "wall" }, lane);
+      el("rect", { x: (PX + 0.45) * S, y: 2 * S, width: (13 - PX - 0.45) * S, height: 0.12 * S, class: "wall" }, lane);
+    } else el("rect", { x: 0, y: 2 * S, width: 13 * S, height: 0.12 * S, class: "wall" }, lane);
+    el("rect", { x: DOOR * S, y: 0, width: 0.25 * S, height: 0.69 * S, class: "wall" }, lane);
+    el("rect", { x: DOOR * S, y: 1.31 * S, width: 0.25 * S, height: 0.69 * S, class: "wall" }, lane);
+    el("line", { x1: 0.4 * S, x2: 12.6 * S, y1: S, y2: S, class: "plan" }, lane);
+    return lane;
+  };
+  F.laneA = mk(210, "Arm always out", "In simulation: 0 of 30 routes completed", false);
+  F.laneB = mk(535, "Arm always in, one speed for everything", "In simulation: 9 of 30 completed, 21 collisions", true);
+  F.rA = makeRobot(F.laneA, S); F.rB = makeRobot(F.laneB, S);
+  F.person = makePerson(F.laneB, S);
+  F.burstA = el("circle", { class: "burst" }, F.laneA); F.burstB = el("circle", { class: "burst" }, F.laneB);
+  F.noteA = txt(F.laneA, (DOOR + 0.5) * S, 1.55 * S, "", "t-strong t-risk", 26);
+  F.noteB1 = txt(F.laneB, (DOOR + 0.5) * S, 0.5 * S, "", "t-strong t-safe", 24);
+  F.noteB2 = txt(F.laneB, (PX - 1.0) * S, 1.65 * S, "", "t-strong t-risk", 26, { "text-anchor": "end" });
+  Object.assign(F, { S, DOOR, PX });
+}
+// ---------- warehouse map (shared by measure + adapt)
+const M = {};
+{
+  const g = G.map, S = MAP.S;
+  const m = el("g", { transform: `translate(${MAP.ox},${MAP.oy})` }, g);
+  el("rect", { x: 0, y: 0, width: MAP.W * S, height: MAP.H * S, class: "floor" }, m);
+  for (let x = 1; x < MAP.W; x++) el("line", { x1: x * S, x2: x * S, y1: 0, y2: MAP.H * S, class: "grid" }, m);
+  for (let y = 1; y < MAP.H; y++) el("line", { x1: 0, x2: MAP.W * S, y1: y * S, y2: y * S, class: "grid" }, m);
+  for (let k = 0; k < 7; k++) el("rect", { x: (7.35 + k * 0.26) * S, y: 3.22 * S, width: 0.13 * S, height: 0.76 * S, class: "zebra" }, m);
+  const clip = el("clipPath", { id: "mapclip" }, document.querySelector("#svg defs"));
+  el("rect", { x: 0, y: 0, width: MAP.W * S, height: MAP.H * S }, clip);
+  M.halo = makeHalo(m);
+  M.halo.g.setAttribute("clip-path", "url(#mapclip)");
+  for (const o of OBST) M.halo.rect(o.x, o.y, o.w, o.h);
+  M.personHalo = M.halo.circle(0, 0, PERSON.r);
+  for (const o of OBST) el("rect", { x: o.x * S, y: o.y * S, width: o.w * S, height: o.h * S, class: o.k }, m);
+  const lab = (x, y, s, anchor) => txt(m, x * S, y * S, s, "t-strong", 22, { "text-anchor": anchor || "start" });
+  lab(0.6, 4.5, "Pick", "middle"); lab(5.4, 6.55, "Door"); lab(8.95, 4.2, "Crossing"); lab(10.35, 0.95, "Place", "middle");
+  el("path", { class: "plan", d: "M" + PATH.pts.map(p => `${(p[0] * S).toFixed(1)} ${(p[1] * S).toFixed(1)}`).join(" L") }, m);
+  M.rays = el("path", { class: "rays" }, m);
+  M.person = makePerson(m, S);
+  M.robot = makeRobot(m, S);
+  const bx = (MAP.W - 0.15) * S - 132, by = 0.3 * S;
+  el("rect", { x: bx, y: by, width: 124, height: 32, rx: 5, class: "badge" }, m);
+  txt(m, bx + 62, by + 22, "2× SPEED", "t-chip", 16, { "text-anchor": "middle" });
+
+  const x0 = 1080, w = 456;
+  el("rect", { x: x0 - 20, y: MAP.oy, width: w + 40, height: MAP.H * S, rx: 10, class: "panel-bg" }, g);
+  // measure panel
+  M.measure = el("g", {}, g);
+  txt(M.measure, x0, MAP.oy + 46, "WHAT IT MEASURES", "t-label", 18);
+  M.mRows = MEASURES.map((mm, i) => {
+    const y = MAP.oy + 72 + i * 94;
+    const hl = el("rect", { x: x0 - 10, y, width: w + 20, height: 82, rx: 8, class: "hl" }, M.measure);
+    txt(M.measure, x0 + 6, y + 50, mm[0], "t-body", 27);
+    const val = txt(M.measure, x0 + w - 6, y + 52, "", "t-num", 34, { "text-anchor": "end" });
+    return { hl, val, key: mm[1], f: mm[2] };
+  });
+  // adapt panel
+  M.adapt = el("g", {}, g);
+  const block = (i, label) => {
+    const y = MAP.oy + 26 + i * 160;
+    if (i > 0) el("line", { x1: x0, x2: x0 + w, y1: y - 14, y2: y - 14, class: "sep" }, M.adapt);
+    txt(M.adapt, x0, y + 24, label, "t-label", 18);
+    return y;
+  };
+  let y = block(0, "WHAT IT SEES");
+  M.seeV = txt(M.adapt, x0, y + 76, "", "t-title", 36);
+  M.seeS = txt(M.adapt, x0, y + 116, "", "t-muted", 25);
+  y = block(1, "HOW IT HOLDS THE BOX");
+  M.armV = txt(M.adapt, x0, y + 76, "", "t-title", 40);
+  M.armS = txt(M.adapt, x0, y + 116, "", "t-muted", 25);
+  y = block(2, "SPEED");
+  M.spdV = txt(M.adapt, x0, y + 78, "", "t-num", 44);
+  el("rect", { x: x0, y: y + 100, width: w, height: 12, rx: 6, class: "bar-bg" }, M.adapt);
+  M.spdB = el("rect", { x: x0, y: y + 100, width: 0, height: 12, rx: 6, class: "bar-blue" }, M.adapt);
+  y = block(3, "OBSTACLE MARGIN");
+  M.infV = txt(M.adapt, x0, y + 78, "", "t-num t-infl", 44);
+  txt(M.adapt, x0 + w, y + 78, "inflation radius", "t-muted", 21, { "text-anchor": "end" });
+  el("rect", { x: x0, y: y + 100, width: w, height: 12, rx: 6, class: "bar-bg" }, M.adapt);
+  M.infB = el("rect", { x: x0, y: y + 100, width: 0, height: 12, rx: 6, class: "bar-infl" }, M.adapt);
+  M.x0 = x0; M.w = w;
+}
+// ---------- causal
+const C = {};
+{
+  const g = G.causal;
+  C.a = el("g", {}, g);
+  const node = (x, y, w, label, cls) => { const n = el("g", {}, C.a); el("rect", { x: x - w / 2, y: y - 40, width: w, height: 80, rx: 40, class: cls || "node" }, n); txt(n, x, y + 10, label, "t-strong", 30, { "text-anchor": "middle" }); return n; };
+  C.n1 = node(800, 250, 300, "Open space", "node-hot");
+  C.n2 = node(470, 520, 300, "Drives fast");
+  C.n3 = node(1130, 520, 300, "No collision");
+  C.e1 = el("path", { d: "M720 292 L530 470", class: "edge", "marker-end": "url(#arr)" }, C.a);
+  C.e2 = el("path", { d: "M880 292 L1070 470", class: "edge", "marker-end": "url(#arr)" }, C.a);
+  C.e3 = el("path", { d: "M626 520 L974 520", class: "edge-fake" }, C.a);
+  C.e3t = txt(C.a, 800, 500, "looks like speed is safe", "t-strong t-risk", 24, { "text-anchor": "middle" });
+  C.b = el("g", {}, g);
+  const steps = [["1", "Measure the place"], ["2", "Try a random setting"], ["3", "Watch what happens"]];
+  C.steps = steps.map((s, i) => {
+    const sg = el("g", {}, C.b), x = 120 + i * 470;
+    el("rect", { x, y: 160, width: 420, height: 130, rx: 12, class: i === 1 ? "node-hot" : "node" }, sg);
+    txt(sg, x + 28, 245, s[0], "t-num t-blue", 52);
+    txt(sg, x + 86, 238, s[1], "t-strong", 30);
+    if (i < 2) el("path", { d: `M${x + 426} 225 L${x + 462} 225`, class: "edge", "marker-end": "url(#arr)" }, sg);
+    return sg;
+  });
+  const rnd = mulberry32(5825);
+  C.dots = [];
+  const cols = 67, rows = 10, gap = 18, dx0 = 1600 / 2 - (cols - 1) * gap / 2, dy0 = 360;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
+    C.dots.push(el("circle", { cx: dx0 + c * gap, cy: dy0 + r * gap, r: 6, class: rnd() < 0.5 ? "dot-a" : "dot-b" }, C.b));
+  C.count = txt(C.b, 800, 620, "", "t-num", 64, { "text-anchor": "middle" });
+  C.countSub = txt(C.b, 800, 668, "experiments in one building, then tested in another", "t-muted", 28, { "text-anchor": "middle" });
+}
+// ---------- results
+const RS = {};
+{
+  const g = G.results;
+  const ROWS = [
+    { name: "Standard settings, arm out", r: 0, c: 24, b: 6 },
+    { name: "Auto-tuned settings, arm out", r: 0, c: 27, b: 3 },
+    { name: "Auto-tuned settings, arm in", r: 9, c: 21, b: 0 },
+    { name: "Only the arm adapts", r: 16, c: 14, b: 0 },
+    { name: "Our tuner", r: 22, c: 7, b: 1, ours: true },
+  ];
+  [["w-reach", "completed"], ["w-coll", "collided"], ["w-block", "got stuck"]].forEach(([c, t], i) => {
+    el("rect", { x: 560 + i * 220, y: 134, width: 22, height: 22, rx: 4, class: c }, g); txt(g, 592 + i * 220, 153, t, "t-body", 22);
+  });
+  RS.rows = ROWS.map((row, i) => {
+    const y = 186 + i * 104, rg = el("g", {}, g);
+    if (row.ours) el("rect", { x: 44, y: y - 8, width: 1512, height: 88, rx: 10, class: "hl" }, rg);
+    txt(rg, 64, y + 48, row.name, row.ours ? "t-title" : "t-body", row.ours ? 30 : 27);
+    const sq = [];
+    for (let j = 0; j < 30; j++) {
+      const cls = j < row.r ? "w-reach" : j < row.r + row.c ? "w-coll" : "w-block";
+      el("rect", { x: 560 + j * 27, y: y + 10, width: 22, height: 52, rx: 4, class: "w-empty" }, rg);
+      sq.push(el("rect", { x: 560 + j * 27, y: y + 10, width: 22, height: 52, rx: 4, class: cls }, rg));
+    }
+    txt(rg, 1556, y + 50, `${row.r} / 30`, "t-num", row.ours ? 36 : 30, { "text-anchor": "end" });
+    return { rg, sq };
+  });
+  txt(g, 64, 740, "Computer simulation of a larger mobile robot, on routes with a person-sized moving obstacle.", "t-muted", 22);
+}
+// ---------- outro
+const O = {};
+{
+  const g = G.outro;
+  O.h = lines(g, 114, 250, ["One fixed setting is a compromise.", "This robot re-chooses, live."], "t-hero", 66, 82);
+  const P3 = [
+    ["Measures first", ["Looks at the place before", "changing anything."]],
+    ["Learned by experiment", ["Knows what each setting", "actually does, and where."]],
+    ["Safety limits stay on", ["Every choice must fit,", "and must be able to stop."]],
+  ];
+  O.cards = P3.map((p, i) => {
+    const cg = el("g", {}, g), x = 120 + i * 470;
+    el("line", { x1: x, x2: x + 400, y1: 440, y2: 440, class: "accent-rule" }, cg);
+    txt(cg, x, 494, p[0], "t-title", 32);
+    lines(cg, x, 540, p[1], "t-muted", 26, 36);
+    return cg;
+  });
+  O.live = txt(g, 120, 700, "SEE IT LIVE ON THE MIRTE MASTER", "t-label t-blue", 26);
+}
+
+// ---------------------------------------------------------------- per-frame updates
+function poseFromKeys(keys, u) {
+  let i = 0; while (i < keys.length - 1 && u >= keys[i + 1][0]) i++;
+  if (i >= keys.length - 1) return blendPose(keys[i][1], keys[i][1], 1);
+  const [ta, na] = keys[i], [tb, nb] = keys[i + 1];
+  if (na === nb) return blendPose(na, na, 1);
+  return blendPose(na, nb, (u - ta) / (tb - ta));
+}
+function updIntro(t) {
+  const u = t - SC.intro.t0;
+  fade(I.h1, u / 0.6); fade(I.sub, (u - 0.7) / 0.6);
+  I.robot.update({ x: lerp(-0.8, 13.5, clamp((u - 0.3) / 6.2)), y: 0, th: 0, a: POSES.side.a, r: POSES.side.r, foot: false });
+}
+const PROBLEM_KEYS = [[0, "front"], [4.4, "front"], [6.2, "side"], [9.6, "side"], [11.2, "tuck"], [99, "tuck"]];
+function updProblem(t) {
+  const u = t - SC.problem.t0, pose = poseFromKeys(PROBLEM_KEYS, u);
+  const w = n => (pose.from === pose.to ? (pose.to === n ? 1 : 0) : (pose.from === n ? 1 - ease(pose.u) : 0) + (pose.to === n ? ease(pose.u) : 0));
+  const wf = w("front"), wt = w("tuck"), ws = w("side");
+  const A = ELEV[pose.from], B = ELEV[pose.to], e = ease(pose.u);
+  const bx = lerp(A.x, B.x, e), y0 = lerp(A.y0, B.y0, e), X = P.X, Y = P.Y;
+  P.box.setAttribute("x", X(bx - 0.11)); P.box.setAttribute("y", Y(y0 + BOX_H));
+  P.tape.setAttribute("x1", X(bx - 0.11)); P.tape.setAttribute("x2", X(bx + 0.11)); P.tape.setAttribute("y1", Y(y0 + BOX_H * 0.62)); P.tape.setAttribute("y2", Y(y0 + BOX_H * 0.62));
+  P.boxG.setAttribute("opacity", (1 - 0.18 * ws).toFixed(2));
+  const gxp = bx - 0.11 * wf, gyp = y0 + BOX_H * 0.5;
+  const sx = 0.10, sy = 0.30, mx = (sx + gxp) / 2, my = (sy + gyp) / 2, dx = gxp - sx, dy = gyp - sy, len = Math.hypot(dx, dy) || 1e-6;
+  let nx = -dy / len, ny = dx / len; if (ny < 0) { nx = -nx; ny = -ny; }
+  const k = Math.max(0.06, 0.24 - len * 0.35), ex = mx + nx * k, ey = my + ny * k;
+  const d = `M${X(sx)} ${Y(sy)} L${X(ex)} ${Y(ey)} L${X(gxp)} ${Y(gyp)}`;
+  P.arm.setAttribute("d", d); P.armHalo.setAttribute("d", d);
+  P.grip.setAttribute("x", X(gxp) - 9); P.grip.setAttribute("y", Y(gyp) - 17);
+  fade(P.coneOk, 1 - wf); fade(P.coneBadG, wf); fade(P.seeLbl, 1 - wf);
+  const comY = lerp(0.14, 0.34, wt), comX = 0.03 * wt + 0.06 * wf;
+  P.com.setAttribute("transform", `translate(${X(comX)},${Y(comY)})`);
+  P.comLbl.setAttribute("x", X(-0.36)); P.comLbl.setAttribute("y", Y(comY) + 7);
+  P.comLead.setAttribute("x1", X(-0.35)); P.comLead.setAttribute("x2", X(comX) - 15); P.comLead.setAttribute("y1", Y(comY)); P.comLead.setAttribute("y2", Y(comY));
+  const stage = u < 5.3 ? 0 : u < 10.3 ? 1 : 2;
+  const V = [["Box in front", "Blocks the sensors", "t-strong t-risk"], ["Box at the side", "Clear view, but wide", "t-strong t-safe"], ["Box lifted in", "Narrow, but top-heavy", "t-strong t-warn"]][stage];
+  P.poseName.textContent = V[0]; P.poseVerdict.textContent = V[1]; P.poseVerdict.setAttribute("class", V[2]);
+  P.top.update({ x: 0, y: 0, th: 0, a: pose.a, r: pose.r, foot: true });
+  // width dimension (top view is drawn at 330 px/m around 1245,470; robot heading right, its left side is up)
+  const f = footprint(pose.a, pose.r), S = 330, ox = 1245, oy = 470, xd = ox + (f.minX - 0.1) * S;
+  P.dim.setAttribute("d", `M${xd} ${oy + f.minY * S} L${xd} ${oy + f.maxY * S}`);
+  P.dimLbl.setAttribute("x", xd - 22); P.dimLbl.setAttribute("y", oy + 6); P.dimLbl.setAttribute("text-anchor", "end");
+  P.dimLbl.textContent = fmt(f.width, 2) + " m";
+  P.dimSub.setAttribute("x", xd - 22); P.dimSub.setAttribute("y", oy + 36); P.dimSub.setAttribute("text-anchor", "end");
+}
+function updMargin(t) {
+  const u = t - SC.margin.t0;
+  const leftOn = u < 6.6 ? 1 : 1 - 0.65 * clamp((u - 6.6) / 0.5), rightOn = u < 6.6 ? 0.35 : 0.35 + 0.65 * clamp((u - 6.6) / 0.5);
+  fade(K.left, leftOn); fade(K.right, rightOn);
+  // doorway: margin shrinks from 0.45 to 0.15, then the robot drives through
+  const rL = lerp(0.45, 0.15, seg(u, 2.0, 3.6));
+  K.lHalo.update(rL, K.SL);
+  const open = 0.62 - 2 * rL > 0.1;
+  K.lVal.textContent = `Margin ${fmt(rL, 2)} m`;
+  K.lPathOk.style.display = open ? "" : "none"; K.lPathBad.style.display = open ? "none" : ""; K.lX.style.display = open ? "none" : "";
+  K.lStatus.textContent = open ? "Doorway open" : "Doorway looks closed";
+  K.lStatus.setAttribute("class", open ? "t-strong t-safe" : "t-strong t-risk");
+  const stopY = (K.wy / K.SL + K.hw + rL) * K.SL;
+  K.lPathBad.setAttribute("d", `M${K.cx} 700 L${K.cx} ${stopY + 34}`);
+  K.lX.setAttribute("transform", `translate(${K.cx},${stopY + 14})`);
+  const ry = lerp(700, 345, seg(u, 3.9, 6.4));
+  K.lRobot.update({ x: K.cx / K.SL, y: ry / K.SL, th: -PI / 2, a: POSES.tuck.a, r: POSES.tuck.r, foot: false });
+  // person: small margin passes close; bigger margin bends the path away
+  const rR = lerp(0.15, 0.55, seg(u, 9.4, 10.1));
+  K.rHalo.update(rR, K.SR);
+  const bump = Math.max(0, 0.25 + rR + R.outerHalfW - K.base);
+  const off = x => { const dx = (x - K.px) / 1.2; return Math.abs(dx) < 1 ? bump * 0.5 * (1 + Math.cos(PI * dx)) : 0; };
+  const yAt = x => K.py + K.base + off(x);
+  let d = ""; for (let x = 860 / K.SR; x <= 1545 / K.SR; x += 0.05) d += (d ? " L" : "M") + `${(x * K.SR).toFixed(1)} ${(yAt(x) * K.SR).toFixed(1)}`;
+  K.rPath.setAttribute("d", d);
+  const pass = u < 9.4 ? seg(u, 6.9, 9.2) : seg(u, 10.3, 12.9);
+  const rx = lerp(900, 1500, pass) / K.SR, th = Math.atan2(yAt(rx + 0.02) - yAt(rx - 0.02), 0.04);
+  K.rRobot.update({ x: rx, y: yAt(rx), th, a: POSES.tuck.a, r: POSES.tuck.r, foot: false });
+  const gap = K.base + bump - 0.25 - R.outerHalfW;
+  const gx = K.px * K.SR, gy1 = (K.py + 0.25) * K.SR, gy2 = (K.py + K.base + bump - R.outerHalfW) * K.SR;
+  K.rGap.setAttribute("x1", gx); K.rGap.setAttribute("x2", gx); K.rGap.setAttribute("y1", gy1); K.rGap.setAttribute("y2", gy2);
+  K.rGapLbl.setAttribute("x", gx + 16); K.rGapLbl.setAttribute("y", (gy1 + gy2) / 2 + 8); K.rGapLbl.textContent = fmt(gap, 2) + " m";
+  K.rVal.textContent = `Margin ${fmt(rR, 2)} m`;
+  const close = gap < 0.25;
+  K.rStatus.textContent = close ? "Passes too close" : "Keeps a safe distance";
+  K.rStatus.setAttribute("class", close ? "t-strong t-risk" : "t-strong t-safe");
+}
+function updFixed(t) {
+  const u = t - SC.fixed.t0, S = F.S, sp = 1.25;
+  const hitA = F.DOOR - 0.13, tcA = 0.6 + (hitA - 0.6) / sp;
+  const xA = 0.6 + sp * clamp(u - 0.6, 0, tcA - 0.6);
+  F.rA.update({ x: xA, y: 1.0, th: 0, a: POSES.side.a, r: POSES.side.r, foot: true });
+  const ba = clamp((u - tcA) / 0.9);
+  F.burstA.setAttribute("cx", F.DOOR * S); F.burstA.setAttribute("cy", 0.62 * S); F.burstA.setAttribute("r", 10 + 50 * ba);
+  F.burstA.setAttribute("opacity", u > tcA ? (1 - ba * 0.8).toFixed(2) : 0);
+  F.noteA.textContent = u > tcA ? "Stuck at the door" : "";
+  const hitB = F.PX - 0.47, tcB = 0.6 + (hitB - 0.6) / sp;
+  const xB = 0.6 + sp * clamp(u - 0.6, 0, tcB - 0.6);
+  F.rB.update({ x: xB, y: 1.0, th: 0, a: POSES.tuck.a, r: POSES.tuck.r, foot: true });
+  const pu = clamp((u - (tcB - 2.05)) / 2.05);
+  F.person.update(F.PX, lerp(2.75, 1.12, pu), -PI / 2, clamp((u - (tcB - 2.4)) / 0.4), u > tcB);
+  const bb = clamp((u - tcB) / 0.9);
+  F.burstB.setAttribute("cx", (hitB + 0.22) * S); F.burstB.setAttribute("cy", 1.0 * S); F.burstB.setAttribute("r", 10 + 50 * bb);
+  F.burstB.setAttribute("opacity", u > tcB ? (1 - bb * 0.8).toFixed(2) : 0);
+  F.noteB1.textContent = xB > F.DOOR + 0.6 ? "Fits through" : "";
+  F.noteB2.textContent = u > tcB ? "Too fast to stop" : "";
+}
+const SEE = {
+  open: g => ["Open aisle", `Passage ${g.width >= 3 ? "3+" : fmt(g.width, 1)} m wide`],
+  narrow: g => ["Narrow doorway", `Only ${fmt(g.width, 2)} m wide`],
+  obstacle: g => (g.per ? ["Person ahead", `${fmt(g.ttc, 1)} s to contact`] : ["Wall ahead", `${fmt(g.ttc, 1)} s to contact`]),
+  emergency: g => ["Person too close", `${fmt(g.ttc, 1)} s to contact`],
+  dock: g => ["Place station", `${fmt(Math.max(0, PATH.len - 0), 1)} m route, almost there`],
+};
+function updMap(t) {
+  const inSense = t < SC.mission.t0;
+  const tau = inSense ? 0 : t - SC.mission.t0;
+  const st = simAt(tau);
+  const i0 = Math.floor(tau / DT), uf = tau / DT - i0, a0 = SIM.rec[clamp(i0, 0, SIM.rec.length - 1)], a1 = SIM.rec[clamp(i0 + 1, 0, SIM.rec.length - 1)];
+  const s = lerp(a0.s, a1.s, uf);
+  const g = riskState(s, tau, true), S = MAP.S, arm = st.arm;
+  M.robot.update({ x: g.pose.x, y: g.pose.y, th: g.pose.th, a: arm.a, r: arm.r, foot: true });
+  let rays = "";
+  for (const r of g.rays) rays += `M${(r[0] * S).toFixed(1)} ${(r[1] * S).toFixed(1)} L${(r[2] * S).toFixed(1)} ${(r[3] * S).toFixed(1)} `;
+  M.rays.setAttribute("d", rays);
+  const per = inSense ? null : personAt(tau);
+  if (per) { M.person.update(per.x, per.y, PI, per.alpha, st.emergency); M.halo.move(M.personHalo, per.x, per.y, true); }
+  else { M.person.update(0, 0, 0, 0, false); M.halo.move(M.personHalo, 0, 0, false); }
+  M.halo.update(st.par.inf, S);
+  // panels
+  fade(M.measure, inSense ? 1 : 0); M.measure.style.display = inSense ? "" : "none";
+  fade(M.adapt, inSense ? 0 : 1); M.adapt.style.display = inSense ? "none" : "";
+  if (inSense) {
+    const hl = Math.floor((t - SC.sense.t0 - 0.8) / 0.62);
+    M.mRows.forEach((row, i) => { row.val.textContent = row.f(g[row.key]); row.hl.style.display = i === hl ? "" : "none"; });
+    return;
+  }
+  const see = SEE[st.mode](st.g);
+  if (st.mode === "dock") see[1] = "Getting close to place the box";
+  M.seeV.textContent = see[0]; M.seeS.textContent = see[1];
+  M.seeV.setAttribute("class", st.mode === "emergency" ? "t-title t-risk" : st.mode === "obstacle" && st.g.per ? "t-title t-warn" : "t-title");
+  if (st.transitioning) { M.armV.textContent = arm.to === "tuck" ? "Lifting in…" : arm.to === "side" ? "Moving out…" : "Placing…"; M.armS.textContent = "an arm switch takes about 4 s"; }
+  else if (arm.to === "side") { M.armV.textContent = "At the side"; M.armS.textContent = "clear view, wide"; }
+  else if (arm.to === "tuck") { M.armV.textContent = "Lifted in"; M.armS.textContent = "narrow, so it drives slower"; }
+  else { M.armV.textContent = "Placed"; M.armS.textContent = "on the table"; }
+  M.spdV.textContent = fmt(st.par.spd, 0) + " %";
+  M.spdB.setAttribute("width", (M.w * clamp(st.par.spd / 100)).toFixed(1));
+  M.infV.textContent = fmt(st.par.inf, 2) + " m";
+  M.infB.setAttribute("width", (M.w * clamp(st.par.inf / 0.6)).toFixed(1));
+}
+function updCausal(t) {
+  const u = t - SC.causal.t0;
+  fade(C.a, clamp(u / 0.5) * clamp((6.6 - u) / 0.5)); C.a.style.display = u < 6.6 ? "" : "none";
+  fade(C.n2, (u - 0.5) / 0.5); fade(C.n3, (u - 0.5) / 0.5);
+  fade(C.e1, (u - 1.1) / 0.5); fade(C.e2, (u - 1.1) / 0.5);
+  fade(C.e3, (u - 2.4) / 0.5); fade(C.e3t, (u - 2.4) / 0.5);
+  fade(C.b, (u - 6.6) / 0.5); C.b.style.display = u >= 6.6 ? "" : "none";
+  C.steps.forEach((s, i) => fade(s, (u - 6.7 - i * 0.5) / 0.5));
+  const n = Math.round(C.dots.length * clamp((u - 8.4) / 4.2));
+  C.dots.forEach((d, i) => { d.style.display = i < n ? "" : "none"; });
+  C.count.textContent = Math.round(6700 * n / C.dots.length).toLocaleString("en-US");
+  fade(C.count, (u - 8.2) / 0.4); fade(C.countSub, (u - 8.6) / 0.5);
+}
+function updResults(t) {
+  const u = t - SC.results.t0;
+  RS.rows.forEach((row, i) => {
+    fade(row.rg, (u - i * 0.35) / 0.4);
+    row.sq.forEach((q, j) => { q.style.display = u > 0.5 + i * 0.35 + j * 0.045 ? "" : "none"; });
+  });
+}
+function updOutro(t) {
+  const u = t - SC.outro.t0;
+  fade(O.h, u / 0.6);
+  O.cards.forEach((c, i) => fade(c, (u - 1.0 - i * 0.5) / 0.5));
+  fade(O.live, (u - 2.8) / 0.5);
+}
+const UPD = { intro: updIntro, problem: updProblem, margin: updMargin, fixed: updFixed, causal: updCausal, results: updResults, outro: updOutro };
+
+function render(t) {
+  let cur = SCENES[0];
+  SCENES.forEach((sc, i) => {
+    if (t >= sc.t0 && t < sc.t1) cur = sc;
+    if (sc.id === "sense" || sc.id === "mission") { show(G[sc.id], 0); return; }
+    const a = i === 0 ? (t < sc.t1 ? clamp((sc.t1 - t) / 0.5) : 0) : win(t, sc.t0, sc.t1);
+    show(G[sc.id], a);
+    if (a > 0) UPD[sc.id](t);
+  });
+  const ma = win(t, SC.sense.t0, SC.mission.t1);
+  show(G.map, ma);
+  if (ma > 0) updMap(t);
+  const ta = cur.id === "sense" || cur.id === "mission" ? win(t, cur.t0, cur.t1, 0.35) : win(t, cur.t0, cur.t1);
+  eyebrow.textContent = TITLES[cur.id][0]; title.textContent = TITLES[cur.id][1];
+  fade(eyebrow, ta); fade(title, ta);
+  const c = CAPS.find(k => t >= k.t0 && t < k.t1);
+  if (c) { const a = win(t, c.t0, c.t1, 0.3); cap1.textContent = c.l1; cap2.textContent = c.l2; fade(cap1, a); fade(cap2, a); capBand.style.display = ""; }
+  else capBand.style.display = "none";
+  prog.setAttribute("width", (1600 * t / DUR).toFixed(1));
+}
+
+// ---------------------------------------------------------------- transport
+const scrub = document.getElementById("scrub"), timeEl = document.getElementById("time"), playBtn = document.getElementById("play");
+const chipsEl = document.getElementById("chips");
+scrub.max = DUR.toFixed(2);
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+let T = 0;
+const chipBtns = SCENES.map(sc => {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = sc.name;
+  b.addEventListener("click", () => { T = sc.t0 + 0.01; frame(); });
+  chipsEl.appendChild(b); return b;
+});
+const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let playing = !reduce, last = null;
+function setPlaying(p) { playing = p; playBtn.textContent = p ? "Pause" : "Play"; last = null; }
+setPlaying(playing);
+function frame() {
+  render(T);
+  scrub.value = T.toFixed(2);
+  timeEl.textContent = `${mmss(T)} / ${mmss(DUR)}`;
+  chipBtns.forEach((b, i) => b.setAttribute("aria-current", T >= SCENES[i].t0 && T < SCENES[i].t1 ? "true" : "false"));
+}
+function loop(ts) {
+  if (playing) {
+    if (last != null) { T += Math.min(0.1, (ts - last) / 1000); if (T >= DUR) T = 0; }
+    last = ts; frame();
+  }
+  requestAnimationFrame(loop);
+}
+playBtn.addEventListener("click", () => setPlaying(!playing));
+scrub.addEventListener("input", () => { T = parseFloat(scrub.value); frame(); });
+const stageEl = document.getElementById("stage");
+function toggleFs() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else if (stageEl.requestFullscreen) stageEl.requestFullscreen().catch(() => {}); }
+document.getElementById("fs").addEventListener("click", toggleFs);
+document.getElementById("clean").addEventListener("click", () => document.body.classList.toggle("clean"));
+function sceneIndex() { return Math.max(0, SCENES.findIndex(s => T >= s.t0 && T < s.t1)); }
+document.addEventListener("keydown", e => {
+  if (e.target && e.target.tagName === "INPUT" && e.key !== " ") return;
+  if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === "ArrowRight") { const i = Math.min(SCENES.length - 1, sceneIndex() + 1); T = SCENES[i].t0 + 0.01; frame(); }
+  else if (e.key === "ArrowLeft") { const i = sceneIndex(); const j = T - SCENES[i].t0 > 1.5 ? i : Math.max(0, i - 1); T = SCENES[j].t0 + 0.01; frame(); }
+  else if (e.key === "f" || e.key === "F") toggleFs();
+  else if (e.key === "c" || e.key === "C") document.body.classList.toggle("clean");
+});
+const NARR = {
+  intro: "The best settings for a robot in an open aisle are not the best settings in a doorway. This robot changes its own settings as it drives.",
+  problem: "Its job is to carry a tall box. In front, the box blocks its sensors. At the side, it sees clearly but is much wider. Lifted in over its body, it is narrow again but top-heavy, so it should only do that briefly and slowly.",
+  margin: "The second key setting is the obstacle margin, called the inflation radius: how much room the robot keeps from things. Too big, and a narrow doorway looks closed. Too small, and it passes people too closely.",
+  fixed: "So any one fixed setting fails somewhere. With the arm always out, it cannot get through the door. With the arm always in and one speed, it cannot stop in time for a person.",
+  sense: "Five times a second, the robot first measures six simple things about where it is, before it changes anything.",
+  mission: "Then it picks the best setting that is still safe: does it fit, can it stop in time, is the risk low enough. Watch the box move in for the doorway and for the person, the speed drop, and the purple margin shrink at the door and grow around the person.",
+  causal: "It learned what each setting does by experiment, like an A/B test. In thousands of trials it measured the place, tried a random setting, and watched the next four seconds. So it knows what a setting causes, instead of guessing from habits.",
+  results: "In simulation, in a building it had never seen, it completed 22 of 30 routes. Fixed settings completed between 0 and 9. The trade-off is that it drives slower.",
+  outro: "Measure first, learn by experiment, and keep the safety limits on. You can see it live here on the MIRTE Master.",
+};
+const ol = document.getElementById("script");
+SCENES.forEach(sc => {
+  const li = document.createElement("li");
+  const b = document.createElement("b"); b.textContent = `${mmss(sc.t0)}  ${sc.name}`;
+  const span = document.createElement("span"); span.textContent = NARR[sc.id];
+  li.append(b, span); ol.appendChild(li);
+});
+window.__tuner = { SIM, SCENES, render: tt => { T = tt; frame(); }, pause: () => setPlaying(false), play: () => setPlaying(true) };
+frame();
+requestAnimationFrame(loop);
+})();
+</script>

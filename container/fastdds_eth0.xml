@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FastDDS transport profile for the Mirte demo container.
+     History: this file originally declared ONLY a UDPv4 transport whitelisted
+     to the eth0 address, together with <useBuiltinTransports>false</>. That
+     combination also disables the shared-memory and loopback transports, so
+     every message between two nodes INSIDE this container (/tf at ~50Hz, the
+     costmap updates, every service call, and the lifecycle bond heartbeats)
+     was forced out through the eth0 UDP socket. Under load those socket
+     buffers overflow, intra-container traffic starts dropping, and the symptom
+     is a nav2 stack that silently stops: amcl's map->odom transform stops
+     reaching controller_server ("Transform data too old", with a frozen
+     transform timestamp), bt_navigator service calls time out, and
+     lifecycle_manager loses map_server's bond heartbeat and tears down the
+     whole stack. Traffic FROM the robot keeps working throughout, which makes
+     it look like a nav2 bug rather than a transport problem.
+
+     Fix: keep the eth0 whitelist (that is what keeps discovery off docker0 and
+     working with the robot) but add SHM back for node-to-node traffic, and
+     enlarge the UDP socket buffers for the large costmap/map messages. -->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+
+    <!-- Node-to-node traffic inside this container. Never touches the network.
+         The segment must hold the largest message in flight; the global costmap
+         of a 329x275 map plus the OccupancyGrid copies needs several MB. -->
+    <transport_descriptor>
+      <transport_id>shm_local</transport_id>
+      <type>SHM</type>
+      <segment_size>33554432</segment_size>        <!-- 32 MB -->
+    </transport_descriptor>
+
+    <!-- Traffic to and from the robot, pinned to eth0 so discovery does not
+         wander onto docker0 or the host's other interfaces. -->
+    <transport_descriptor>
+      <transport_id>udp_eth0</transport_id>
+      <type>UDPv4</type>
+      <interfaceWhiteList>
+        <!-- Loopback first: without it, container-local discovery depends on
+             the robot's network being up. When eth0 does not currently hold
+             192.168.45.35 (robot off, or DHCP handed out a different address)
+             the whitelist matches no interface at all and, together with
+             <useBuiltinTransports>false</>, DDS has nowhere to run: nodes
+             start but never discover each other. -->
+        <address>127.0.0.1</address>
+        <address>192.168.45.35</address> 
+       <!--<address>192.168.42.148</address>    this is for no cable connection, one of these should be commented -->
+      </interfaceWhiteList>
+      <sendBufferSize>8388608</sendBufferSize>     <!-- 8 MB -->
+      <receiveBufferSize>8388608</receiveBufferSize>
+      <maxMessageSize>65000</maxMessageSize>
+    </transport_descriptor>
+
+  </transport_descriptors>
+
+  <participant profile_name="eth0_only" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <!-- Order matters: SHM is preferred for same-host peers. -->
+        <transport_id>shm_local</transport_id>
+        <transport_id>udp_eth0</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+    </rtps>
+  </participant>
+</profiles>
