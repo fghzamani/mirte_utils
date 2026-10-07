@@ -101,9 +101,3 @@ most time:
   the velocity limit collapses exploration and the robot stands still.
 - **`r_min` has a floor** set by the laser self-filter; it cannot distinguish
   "at the floor distance" from "touching".
-
-## State
-
-Tagged `mirte-demo-2026-10-07` in all three package repositories. The ICRA
-submission branch (`icra_submission` @ `6e3d802` in `online_causal_tuner`) is
-deliberately untouched.
